@@ -5,43 +5,52 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { AGENT_META } from "@/lib/models";
-import type { AgentOutput } from "@/lib/types";
+import type { AgentOutput, AgentProfile } from "@/lib/types";
 
 export function AgentBubble({
   output,
+  profile,
   delay = 0,
+  align = "start",
 }: {
   output: AgentOutput;
+  profile?: AgentProfile;
   delay?: number;
+  align?: "start" | "end";
 }) {
-  const meta = AGENT_META[output.name];
+  // Fallback if profile not provided
+  const color = profile?.color ?? "#6b7280";
+  const initial = profile?.initial ?? output.name[0]?.toUpperCase() ?? "?";
+  const label = profile?.name?.toUpperCase() ?? output.name.toUpperCase();
+  const emoji = profile?.emoji ?? "🤖";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className="flex flex-col gap-3 p-5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 shadow-sm relative overflow-hidden group"
+      className={`flex flex-col gap-3 p-5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 shadow-sm relative overflow-hidden group w-full max-w-3xl ${
+        align === "end" ? "self-end" : "self-start"
+      }`}
     >
-      {/* Colored left accent line */}
+      {/* Colored left/right accent line */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1 opacity-80"
-        style={{ backgroundColor: meta.color }}
+        className={`absolute top-0 bottom-0 w-1 opacity-80 ${align === "end" ? "right-0" : "left-0"}`}
+        style={{ backgroundColor: color }}
       />
 
       {/* Header */}
       <div className="flex items-center gap-3">
         <div
           className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold text-white shadow-inner"
-          style={{ backgroundColor: meta.color }}
+          style={{ backgroundColor: color }}
         >
-          {meta.initial}
+          {initial}
         </div>
         <div>
           <h3 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-            {meta.label}
-            <span className="text-base">{meta.emoji}</span>
+            {label}
+            <span className="text-base">{emoji}</span>
           </h3>
         </div>
       </div>
@@ -72,7 +81,7 @@ export function AgentBubble({
       {/* Critique (Optional, shown if it exists and is interesting) */}
       {output.critique && (
         <div className="pl-11 mt-2 text-xs text-zinc-500 italic border-l-2 border-zinc-800 pl-3">
-          "{output.critique}"
+          &quot;{output.critique}&quot;
         </div>
       )}
     </motion.div>

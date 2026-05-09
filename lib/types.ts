@@ -1,5 +1,12 @@
-// ─── Agent Names ─────────────────────────────────────────────────────────────
-export type AgentName = "axiom" | "vera" | "moros" | "pascal" | "lyra";
+export type AgentName = string;
+
+export interface AgentProfile {
+  name: string;
+  emoji: string;
+  color: string;
+  initial: string;
+  prompt: string;
+}
 
 // ─── Raw parsed output from one agent per round ───────────────────────────────
 export interface AgentOutput {
@@ -16,10 +23,10 @@ export interface AgentOutput {
 export interface ArbiterResult {
   round: number;
   composites: Record<AgentName, number>;
-  mutatedAgent: AgentName | null;
-  mutationPrompt: string | null;
+  mutatedAgent: string | null;
+  mutationProfile: AgentProfile | null;
   consensus: boolean;
-  winner: AgentName | null;
+  winner: string | null;
   tiebreakerUsed: boolean;
   tiebreakerReason: string | null;
 }
@@ -43,7 +50,7 @@ export interface UserInput {
 export interface StoreState {
   userInput: UserInput;
   currentRound: number; // 1–4
-  agentPersonalities: Record<AgentName, string>;
+  agentProfiles: Record<string, AgentProfile>;
   rounds: RoundData[];
   status: "idle" | "running" | "done";
   // actions
@@ -51,6 +58,7 @@ export interface StoreState {
   setStatus: (s: StoreState["status"]) => void;
   incrementRound: () => void;
   addRound: (round: RoundData) => void;
-  mutateAgent: (agent: AgentName, prompt: string) => void;
+  setAgentProfiles: (profiles: Record<string, AgentProfile>) => void;
+  mutateAgent: (agent: string, newProfile: AgentProfile) => void;
   reset: () => void;
 }

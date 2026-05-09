@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useCouncilStore } from "@/lib/store";
-import { CouncilGrid } from "@/components/CouncilGrid";
+import { CouncilChat } from "@/components/CouncilChat";
 import { VoteBar } from "@/components/VoteBar";
 import { WinnerCard } from "@/components/WinnerCard";
 import { MutationToast } from "@/components/MutationToast";
@@ -17,7 +17,7 @@ export default function CouncilPage() {
   // Prevent double-fires in React Strict Mode
   const runningRound = useRef<number | null>(null);
 
-  // Kick off the round if idle
+  // Kick off the round if idle or auto-progress if done
   useEffect(() => {
     if (!store.userInput.problem) {
       router.replace("/");
@@ -25,14 +25,49 @@ export default function CouncilPage() {
     }
 
     if (store.status === "idle" && runningRound.current !== store.currentRound) {
-      runCouncilRound();
+      if (Object.keys(store.agentProfiles).length === 0) {
+        generateAndRun();
+      } else {
+        runCouncilRound();
+      }
+    }
+    
+    // Auto-progress to next round
+    const isGameOver = store.rounds.some((r) => r.arbiterResult.winner !== null) || store.currentRound >= 4;
+    if (store.status === "done" && !isGameOver) {
+      store.incrementRound();
+      store.setStatus("idle");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.status, store.currentRound, store.userInput]);
+  }, [store.status, store.currentRound, store.userInput, store.rounds]);
 
-  const runCouncilRound = async () => {
+  const generateAndRun = async () => {
     runningRound.current = store.currentRound;
     store.setStatus("running");
+    
+    try {
+      const genRes = await fetch("/api/council/generate-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userInput: store.userInput }),
+      });
+      
+      if (!genRes.ok) throw new Error("Failed to generate agents");
+      const { profiles } = await genRes.json();
+      store.setAgentProfiles(profiles);
+      
+      // Now run the round
+      await runCouncilRound(profiles);
+    } catch (err) {
+      console.error(err);
+      store.setStatus("done");
+    }
+  };
+
+  const runCouncilRound = async (customProfiles?: Record<string, any>) => {
+    runningRound.current = store.currentRound;
+    store.setStatus("running");
+    const profilesToUse = customProfiles || store.agentProfiles;
 
     try {
       // 1. Get round history
@@ -50,7 +85,7 @@ export default function CouncilPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userInput: store.userInput,
-          agentPersonalities: store.agentPersonalities,
+          agentProfiles: profilesToUse,
           roundHistory,
           currentRound: store.currentRound,
         }),
@@ -66,6 +101,7 @@ export default function CouncilPage() {
         body: JSON.stringify({
           agentOutputs: agents,
           currentRound: store.currentRound,
+          agentNames: Object.keys(profilesToUse),
         }),
       });
 
@@ -81,14 +117,14 @@ export default function CouncilPage() {
 
       store.addRound(newRound);
 
-      if (arbiterResult.mutatedAgent && arbiterResult.mutationPrompt) {
-        store.mutateAgent(arbiterResult.mutatedAgent, arbiterResult.mutationPrompt);
+      // 5. Handle mutation — replace the worst agent with a new profile
+      if (arbiterResult.mutatedAgent && arbiterResult.mutationProfile) {
+        store.mutateAgent(arbiterResult.mutatedAgent, arbiterResult.mutationProfile);
       }
 
       if (arbiterResult.winner || store.currentRound >= 4) {
         store.setStatus("done");
       } else {
-        // Just finished a round, waiting for user to click Next
         store.setStatus("done"); 
       }
     } catch (err) {
@@ -97,19 +133,12 @@ export default function CouncilPage() {
     }
   };
 
-  const handleNextRound = () => {
-    store.incrementRound();
-    store.setStatus("idle");
-  };
-
   if (!store.userInput.problem) return null;
 
   // Render logic
   const isRunning = store.status === "running";
-  const currentRoundData = store.rounds.find((r) => r.round === store.currentRound);
+  const currentRoundData = store.rounds[store.rounds.length - 1];
   
-  // If we're running, we don't have data for *this* round yet, so we show skeletons
-  // unless we're looking at a completed round
   const showSkeletons = isRunning && !currentRoundData;
   const isGameOver = store.rounds.some((r) => r.arbiterResult.winner !== null) || store.currentRound > 4;
   
@@ -133,56 +162,53 @@ export default function CouncilPage() {
           <div className="text-sm font-mono bg-zinc-950 px-4 py-2 rounded-lg border border-zinc-800 shadow-inner">
             ROUND {Math.min(store.currentRound, 4)} / 4
           </div>
-          {store.status === "done" && !isGameOver && (
-            <Button onClick={handleNextRound} variant="default">
-              Next Round
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="w-full">
-        {showSkeletons ? (
-          <CouncilGrid outputs={[]} isLoading={true} />
-        ) : currentRoundData ? (
-          <CouncilGrid outputs={currentRoundData.agents} isLoading={false} />
-        ) : null}
-      </div>
-
-      {/* Post-round feedback (VoteBar + Mutations + Winner) */}
-      {currentRoundData && !showSkeletons && (
-        <div className="w-full flex flex-col items-center gap-8 mt-4">
-          
-          <div className="w-full max-w-2xl">
-             <VoteBar composites={currentRoundData.arbiterResult.composites} />
-          </div>
-
-          <MutationToast 
-            agent={currentRoundData.arbiterResult.mutatedAgent} 
-            prompt={currentRoundData.arbiterResult.mutationPrompt} 
-          />
-
-          {winningRound && winningRound.arbiterResult.winner && (
-            <div className="w-full max-w-4xl mt-8 mb-16">
-              <WinnerCard 
-                winner={winningRound.arbiterResult.winner}
-                outputs={winningRound.agents}
-                arbiterResult={winningRound.arbiterResult}
-              />
-              <div className="mt-8 flex justify-center">
-                 <Button variant="outline" onClick={() => {
-                   store.reset();
-                   router.push("/");
-                 }}>
-                   Start New Session
-                 </Button>
-              </div>
+      {/* Main Chat Area */}
+      <div className="w-full flex-1 overflow-y-auto pr-2 pb-16">
+        <CouncilChat
+          rounds={store.rounds}
+          isLoading={showSkeletons}
+          agentProfiles={store.agentProfiles}
+        />
+        
+        {/* Post-round feedback (VoteBar + Mutations + Winner) */}
+        {currentRoundData && !showSkeletons && (
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center gap-8 mt-8">
+            <div className="w-full">
+               <VoteBar
+                 composites={currentRoundData.arbiterResult.composites}
+                 agentProfiles={store.agentProfiles}
+               />
             </div>
-          )}
 
-        </div>
-      )}
+            <MutationToast 
+              agent={currentRoundData.arbiterResult.mutatedAgent} 
+              mutationProfile={currentRoundData.arbiterResult.mutationProfile} 
+            />
+
+            {winningRound && winningRound.arbiterResult.winner && (
+              <div className="w-full mt-8 mb-16">
+                <WinnerCard 
+                  winner={winningRound.arbiterResult.winner}
+                  outputs={winningRound.agents}
+                  arbiterResult={winningRound.arbiterResult}
+                  agentProfiles={store.agentProfiles}
+                />
+                <div className="mt-8 flex justify-center">
+                   <Button variant="outline" onClick={() => {
+                     store.reset();
+                     router.push("/");
+                   }}>
+                     Start New Session
+                   </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
     </main>
   );

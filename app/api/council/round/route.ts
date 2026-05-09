@@ -1,16 +1,14 @@
 import { callAgent } from "@/lib/openrouter";
 import { parseAgentOutput } from "@/lib/parser";
 import { MODELS } from "@/lib/models";
-import { DEFAULT_PERSONALITIES } from "@/lib/agents";
-import type { AgentName, AgentOutput, UserInput } from "@/lib/types";
+import { getScoreFormat } from "@/lib/agents";
+import type { AgentOutput, UserInput, AgentProfile } from "@/lib/types";
 
 export const maxDuration = 60;
 
-const AGENT_NAMES: AgentName[] = ["axiom", "vera", "moros", "pascal", "lyra"];
-
 function buildUserMessage(
   userInput: UserInput,
-  roundHistory: { round: number; pitches: Record<AgentName, string> }[],
+  roundHistory: { round: number; pitches: Record<string, string> }[],
   currentRound: number
 ): string {
   const history =
@@ -38,13 +36,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       userInput,
-      agentPersonalities,
+      agentProfiles,
       roundHistory = [],
       currentRound,
     }: {
       userInput: UserInput;
-      agentPersonalities: Record<AgentName, string>;
-      roundHistory: { round: number; pitches: Record<AgentName, string> }[];
+      agentProfiles: Record<string, AgentProfile>;
+      roundHistory: { round: number; pitches: Record<string, string> }[];
       currentRound: number;
     } = body;
 
@@ -55,11 +53,13 @@ export async function POST(request: Request) {
     const userMessage = buildUserMessage(userInput, roundHistory, currentRound);
 
     // ─── Call all 5 agents in parallel ───────────────────────────────────────
+    const agentNames = Object.keys(agentProfiles);
+    const scoreFormat = getScoreFormat(agentNames);
+    
     const results = await Promise.all(
-      AGENT_NAMES.map(async (name): Promise<AgentOutput> => {
-        const systemPrompt =
-          agentPersonalities[name] ?? DEFAULT_PERSONALITIES[name];
-        const model = MODELS[name];
+      agentNames.map(async (name): Promise<AgentOutput> => {
+        const systemPrompt = agentProfiles[name].prompt + "\n\n" + scoreFormat;
+        const model = MODELS.agent;
 
         let raw = "";
         try {

@@ -1,8 +1,8 @@
 import { callAgent } from "@/lib/openrouter";
 import { MODELS } from "@/lib/models";
-import { ARBITER_SYSTEM_PROMPT } from "@/lib/agents";
+import { getArbiterPrompt } from "@/lib/agents";
 import { computeComposites, lowestComposite, tallyFinalVotes } from "@/lib/scoring";
-import type { AgentOutput, ArbiterResult, AgentName } from "@/lib/types";
+import type { AgentOutput, ArbiterResult } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -12,9 +12,11 @@ export async function POST(request: Request) {
     const {
       agentOutputs,
       currentRound,
+      agentNames,
     }: {
       agentOutputs: AgentOutput[];
       currentRound: number;
+      agentNames: string[];
     } = body;
 
     if (!agentOutputs || agentOutputs.length !== 5) {
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
     try {
       rawArbiter = await callAgent({
         model: MODELS.arbiter,
-        systemPrompt: ARBITER_SYSTEM_PROMPT,
+        systemPrompt: getArbiterPrompt(agentNames),
         messages: [{ role: "user", content: arbiterMessage }],
       });
     } catch (err) {
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
         round: currentRound,
         composites,
         mutatedAgent: null,
-        mutationPrompt: null,
+        mutationProfile: null,
         consensus: isConsensus,
         winner: isConsensus ? consensusWinner : null,
         tiebreakerUsed: false,
@@ -79,10 +81,15 @@ export async function POST(request: Request) {
       parsedArbiter = JSON.parse(jsonString);
     } catch (err) {
       console.error("[arbiter] failed to parse JSON:", err, rawArbiter);
-      return Response.json(
-        { error: "Failed to parse arbiter response" },
-        { status: 500 }
-      );
+      // If parsing fails completely, just use a fallback so we don't crash the round
+      parsedArbiter = {
+        mutatedAgent: lowest,
+        mutationProfile: null,
+        consensus: isConsensus,
+        winner: consensusWinner,
+        tiebreakerUsed: false,
+        tiebreakerReason: null,
+      };
     }
 
     // 5. Construct final sanitized result
@@ -90,7 +97,7 @@ export async function POST(request: Request) {
       round: currentRound,
       composites, // Always trust our own computed composites over the LLM's
       mutatedAgent: parsedArbiter.mutatedAgent ?? lowest,
-      mutationPrompt: parsedArbiter.mutationPrompt ?? null,
+      mutationProfile: parsedArbiter.mutationProfile ?? null,
       consensus: isConsensus || parsedArbiter.consensus === true,
       winner: parsedArbiter.winner ?? consensusWinner,
       tiebreakerUsed: parsedArbiter.tiebreakerUsed ?? false,
@@ -101,9 +108,9 @@ export async function POST(request: Request) {
     // force a winner based on highest composite score to guarantee an end.
     if (currentRound === 4 && !result.winner) {
       const highest = Object.entries(composites).reduce((max, [name, score]) =>
-        score > max[1] ? [name as AgentName, score] : max
+        score > max[1] ? [name, score] : max
       );
-      result.winner = highest[0] as AgentName;
+      result.winner = highest[0];
       result.tiebreakerUsed = true;
       result.tiebreakerReason = `Forced tiebreaker based on highest composite score: ${highest[0]} (${highest[1]}).`;
     }

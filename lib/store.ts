@@ -1,8 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { DEFAULT_PERSONALITIES } from "./agents";
-import type { AgentName, RoundData, StoreState, UserInput } from "./types";
+import type { AgentName, RoundData, StoreState, UserInput, AgentProfile } from "./types";
 
 const BLANK_INPUT: UserInput = {
   problem: "",
@@ -15,7 +14,7 @@ export const useCouncilStore = create<StoreState>((set) => ({
   // ─── Initial state ─────────────────────────────────────────────────────────
   userInput: BLANK_INPUT,
   currentRound: 1,
-  agentPersonalities: { ...DEFAULT_PERSONALITIES },
+  agentProfiles: {},
   rounds: [],
   status: "idle",
 
@@ -31,19 +30,21 @@ export const useCouncilStore = create<StoreState>((set) => ({
   addRound: (round: RoundData) =>
     set((state) => ({ rounds: [...state.rounds, round] })),
 
-  mutateAgent: (agent: AgentName, prompt: string) =>
-    set((state) => ({
-      agentPersonalities: {
-        ...state.agentPersonalities,
-        [agent]: prompt,
-      },
-    })),
+  setAgentProfiles: (profiles) => set({ agentProfiles: profiles }),
+
+  mutateAgent: (agent: string, newProfile: AgentProfile) =>
+    set((state) => {
+      const newProfiles = { ...state.agentProfiles };
+      delete newProfiles[agent];
+      newProfiles[newProfile.name] = newProfile;
+      return { agentProfiles: newProfiles };
+    }),
 
   reset: () =>
     set({
       userInput: BLANK_INPUT,
       currentRound: 1,
-      agentPersonalities: { ...DEFAULT_PERSONALITIES },
+      agentProfiles: {},
       rounds: [],
       status: "idle",
     }),

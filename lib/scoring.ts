@@ -1,6 +1,4 @@
-import type { AgentName, AgentOutput } from "./types";
-
-const AGENT_NAMES: AgentName[] = ["axiom", "vera", "moros", "pascal", "lyra"];
+import type { AgentOutput } from "./types";
 
 /**
  * Composite score formula (excludes self-scores):
@@ -8,10 +6,11 @@ const AGENT_NAMES: AgentName[] = ["axiom", "vera", "moros", "pascal", "lyra"];
  */
 export function computeComposites(
   agentOutputs: AgentOutput[]
-): Record<AgentName, number> {
-  const composites = {} as Record<AgentName, number>;
+): Record<string, number> {
+  const composites: Record<string, number> = {};
+  const agentNames = agentOutputs.map((o) => o.name);
 
-  for (const target of AGENT_NAMES) {
+  for (const target of agentNames) {
     let totalFeasibility = 0;
     let totalImpact = 0;
     let count = 0;
@@ -46,11 +45,11 @@ export function computeComposites(
  * Returns the agent name with the lowest composite score.
  */
 export function lowestComposite(
-  composites: Record<AgentName, number>
-): AgentName {
-  return (Object.entries(composites) as [AgentName, number][]).reduce(
+  composites: Record<string, number>
+): string {
+  return Object.entries(composites).reduce(
     (min, [name, score]) => (score < min[1] ? [name, score] : min),
-    ["axiom", Infinity] as [AgentName, number]
+    ["", Infinity] as [string, number]
   )[0];
 }
 
@@ -60,8 +59,8 @@ export function lowestComposite(
  */
 export function tallyFinalVotes(
   agentOutputs: AgentOutput[]
-): AgentName | null {
-  const tally: Partial<Record<AgentName, number>> = {};
+): string | null {
+  const tally: Record<string, number> = {};
 
   for (const output of agentOutputs) {
     if (!output.finalVote) continue;
@@ -69,7 +68,7 @@ export function tallyFinalVotes(
     tally[voted] = (tally[voted] ?? 0) + 1;
   }
 
-  const entries = Object.entries(tally) as [AgentName, number][];
+  const entries = Object.entries(tally);
   if (entries.length === 0) return null;
 
   const maxVotes = Math.max(...entries.map(([, v]) => v));
