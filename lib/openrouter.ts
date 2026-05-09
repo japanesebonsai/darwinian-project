@@ -19,7 +19,7 @@ export async function callAgent({
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1200,
+      max_tokens: 4000,
       messages: [{ role: "system", content: systemPrompt }, ...messages],
     }),
   });

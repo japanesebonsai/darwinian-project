@@ -11,12 +11,10 @@ export function AgentBubble({
   output,
   profile,
   delay = 0,
-  align = "start",
 }: {
   output: AgentOutput;
   profile?: AgentProfile;
   delay?: number;
-  align?: "start" | "end";
 }) {
   // Fallback if profile not provided
   const color = profile?.color ?? "#6b7280";
@@ -29,13 +27,11 @@ export function AgentBubble({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`flex flex-col gap-3 p-5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 shadow-sm relative overflow-hidden group w-full max-w-3xl ${
-        align === "end" ? "self-end" : "self-start"
-      }`}
+      className="flex flex-col gap-3 p-5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 shadow-sm relative overflow-hidden group w-full"
     >
-      {/* Colored left/right accent line */}
+      {/* Colored left accent line */}
       <div
-        className={`absolute top-0 bottom-0 w-1 opacity-80 ${align === "end" ? "right-0" : "left-0"}`}
+        className="absolute left-0 top-0 bottom-0 w-1 opacity-80"
         style={{ backgroundColor: color }}
       />
 

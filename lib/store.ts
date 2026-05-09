@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { AgentName, RoundData, StoreState, UserInput, AgentProfile } from "./types";
+import type { RoundData, StoreState, UserInput, AgentProfile, AgentOutput } from "./types";
 
 const BLANK_INPUT: UserInput = {
   problem: "",
@@ -16,11 +16,12 @@ export const useCouncilStore = create<StoreState>((set) => ({
   currentRound: 1,
   agentProfiles: {},
   rounds: [],
+  pendingAgents: [],
   status: "idle",
 
   // ─── Actions ───────────────────────────────────────────────────────────────
   setUserInput: (input: UserInput) =>
-    set({ userInput: input, status: "idle", currentRound: 1, rounds: [] }),
+    set({ userInput: input, status: "idle", currentRound: 1, rounds: [], pendingAgents: [] }),
 
   setStatus: (s: StoreState["status"]) => set({ status: s }),
 
@@ -29,6 +30,11 @@ export const useCouncilStore = create<StoreState>((set) => ({
 
   addRound: (round: RoundData) =>
     set((state) => ({ rounds: [...state.rounds, round] })),
+
+  addPendingAgent: (agent: AgentOutput) =>
+    set((state) => ({ pendingAgents: [...state.pendingAgents, agent] })),
+
+  clearPendingAgents: () => set({ pendingAgents: [] }),
 
   setAgentProfiles: (profiles) => set({ agentProfiles: profiles }),
 
@@ -46,6 +52,7 @@ export const useCouncilStore = create<StoreState>((set) => ({
       currentRound: 1,
       agentProfiles: {},
       rounds: [],
+      pendingAgents: [],
       status: "idle",
     }),
 }));

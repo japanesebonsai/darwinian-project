@@ -52,12 +52,15 @@ export interface StoreState {
   currentRound: number; // 1–4
   agentProfiles: Record<string, AgentProfile>;
   rounds: RoundData[];
-  status: "idle" | "running" | "done";
+  pendingAgents: AgentOutput[];
+  status: "idle" | "generating" | "running" | "done";
   // actions
   setUserInput: (input: UserInput) => void;
   setStatus: (s: StoreState["status"]) => void;
   incrementRound: () => void;
   addRound: (round: RoundData) => void;
+  addPendingAgent: (agent: AgentOutput) => void;
+  clearPendingAgents: () => void;
   setAgentProfiles: (profiles: Record<string, AgentProfile>) => void;
   mutateAgent: (agent: string, newProfile: AgentProfile) => void;
   reset: () => void;

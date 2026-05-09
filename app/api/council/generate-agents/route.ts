@@ -40,24 +40,48 @@ CONSTRAINT: ${userInput.constraint}${userInput.vibe ? `\nVIBE: ${userInput.vibe}
     });
 
     let jsonStr = raw.trim();
-    if (jsonStr.startsWith("```json")) {
-      jsonStr = jsonStr.replace(/^```json/, "").replace(/```$/, "").trim();
+    
+    // Strip markdown code blocks (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1].trim();
     }
     
-    const profiles = JSON.parse(jsonStr) as AgentProfile[];
-    if (!Array.isArray(profiles) || profiles.length !== 5) {
-      throw new Error("Invalid output from Director");
+    // If there's leading prose before the JSON array, strip it
+    const arrayStart = jsonStr.indexOf("[");
+    if (arrayStart > 0) {
+      jsonStr = jsonStr.substring(arrayStart);
+    }
+    
+    // If JSON was truncated (no closing bracket), try to fix it
+    if (!jsonStr.endsWith("]")) {
+      // Find the last complete object
+      const lastCloseBrace = jsonStr.lastIndexOf("}");
+      if (lastCloseBrace > 0) {
+        jsonStr = jsonStr.substring(0, lastCloseBrace + 1) + "]";
+      }
     }
 
-    // Convert array to Record
+    const profiles = JSON.parse(jsonStr) as AgentProfile[];
+    if (!Array.isArray(profiles) || profiles.length < 3) {
+      throw new Error(`Invalid output from Director: got ${profiles.length} profiles`);
+    }
+
+    // Normalize names to lowercase and convert array to Record
     const profileRecord: Record<string, AgentProfile> = {};
-    profiles.forEach((p) => {
+    profiles.slice(0, 5).forEach((p) => {
+      p.name = p.name.toLowerCase();
+      p.initial = p.initial?.[0]?.toUpperCase() ?? p.name[0].toUpperCase();
       profileRecord[p.name] = p;
     });
 
     return Response.json({ profiles: profileRecord });
-  } catch (err) {
-    console.error("[generate-agents] Error:", err);
-    return Response.json({ error: "Failed to generate agents" }, { status: 500 });
+  } catch (err: any) {
+    console.error("[generate-agents] Error:", err?.message ?? err);
+    console.error("[generate-agents] Stack:", err?.stack);
+    return Response.json(
+      { error: "Failed to generate agents", detail: err?.message ?? String(err) },
+      { status: 500 }
+    );
   }
 }

@@ -19,12 +19,17 @@ export async function POST(request: Request) {
       agentNames: string[];
     } = body;
 
-    if (!agentOutputs || agentOutputs.length !== 5) {
+    if (!agentOutputs || agentOutputs.length === 0) {
       return Response.json(
-        { error: "Expected exactly 5 agent outputs" },
+        { error: "No agent outputs provided" },
         { status: 400 }
       );
     }
+
+    // Fallback: derive agentNames from outputs if not provided
+    const resolvedNames = agentNames?.length
+      ? agentNames
+      : agentOutputs.map((a: any) => a.name);
 
     // 1. Compute composites server-side
     const composites = computeComposites(agentOutputs);
@@ -52,7 +57,7 @@ export async function POST(request: Request) {
     try {
       rawArbiter = await callAgent({
         model: MODELS.arbiter,
-        systemPrompt: getArbiterPrompt(agentNames),
+        systemPrompt: getArbiterPrompt(resolvedNames),
         messages: [{ role: "user", content: arbiterMessage }],
       });
     } catch (err) {
