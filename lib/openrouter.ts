@@ -1,4 +1,4 @@
-const BASE = "https://openrouter.ai/api/v1/chat/completions";
+const BASE = "http://localhost:11434/v1/chat/completions";
 
 export async function callAgent({
   model,
@@ -12,10 +12,7 @@ export async function callAgent({
   const res = await fetch(BASE, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://council-of-llms.vercel.app",
-      "X-Title": "Council of LLMs",
     },
     body: JSON.stringify({
       model,
